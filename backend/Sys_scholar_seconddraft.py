@@ -8,10 +8,12 @@ from pyalex import config,Works, Authors, Sources, Institutions, Topics, Publish
 from dotenv import load_dotenv
 import os
 from flask import Flask, request, jsonify
+from urllib.parse import quote_plus
 
 
 app = Flask(__name__)
 
+API_KEY = 'AIzaSyDxfIQxxkklHytjLs9-hNyv0I4yNPvB_rk'
 scopus_url = "https://api.elsevier.com/content/search/scopus"
 crossref_url = "https://api.crossref.org/works"
 semantic_scholar_url = "https://api.semanticscholar.org/graph/v1/paper/search/bulk"
@@ -289,7 +291,24 @@ def get_combined_results(search_query):
 
     return combined_results
 
+def get_coordinates(address):
+    """Convert an address into geographic coordinates using the Google Maps Geocoding API."""
+    # Ensure the address is properly encoded to be included in the URL
+    encoded_address = quote_plus(address)
+    base_url = f"https://maps.googleapis.com/maps/api/geocode/json?address={encoded_address}&key={API_KEY}"
 
+    response = requests.get(base_url)
+    if response.status_code == 200:
+        data = response.json()
+        if data["status"] == "OK":
+            # Extracting latitude and longitude
+            latitude = data["results"][0]["geometry"]["location"]["lat"]
+            longitude = data["results"][0]["geometry"]["location"]["lng"]
+            return latitude, longitude
+        else:
+            return "Geocoding API error: " + data["status"]
+    else:
+        return "Request failed with status code " + str(response.status_code)
 
 
 
@@ -310,6 +329,30 @@ def search():
         return jsonify(results)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+
+    
+@app.route('/location', methods=['POST'])
+def location():
+    results = []
+    data = request.json
+    candidates = data.get('candidates','')
+    if not candidates:
+        return jsonify({"error": "No candidates provided"}), 400
+    try:
+        for paper in candidates:
+            if not paper['author'].get('affiliation') == None:
+                title_name = paper.get('title')
+                author_name = paper['author'].get('name')  # Using .get() avoids KeyError if 'name' key is missing
+                affiliation_location = paper['author'].get('affiliation')
+                results.append({"title" : title_name,
+                                    'author_name' :author_name,
+                                    'affiliation_location' : affiliation_location,
+                                    'lat_long' :  get_coordinates(affiliation_location)})
+        return jsonify(results)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
     
 
 if __name__ == '__main__':

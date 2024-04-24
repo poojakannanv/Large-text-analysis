@@ -9,9 +9,14 @@ from dotenv import load_dotenv
 import os
 from flask import Flask, request, jsonify
 from urllib.parse import quote_plus
+from flask_cors import CORS
+from datetime import *
+
 
 
 app = Flask(__name__)
+CORS(app)
+
 
 API_KEY = 'AIzaSyDxfIQxxkklHytjLs9-hNyv0I4yNPvB_rk'
 scopus_url = "https://api.elsevier.com/content/search/scopus"
@@ -173,6 +178,7 @@ def get_combined_results(search_query):
             for paper in api_results['data'][:10]: # this limits the papers to 10 as the semantic scholar bulk endpoint doesnt have a limit, remove when completed  development 
                     
                     new_entry = {'title': paper['title']}
+                    new_entry['date']  = paper.get('publicationDate')
                     new_entry['source'] = 'semantic_scholar'
                     new_entry['abstract'] = paper.get('abstract')
                     new_entry['source_ranking_semantic_scholar'] = paper.get('source_ranking_semantic_scholar')
@@ -193,6 +199,9 @@ def get_combined_results(search_query):
                         new_entry['abstract'] = paper.get('abstract')
                     if not 'abstract' in paper:
                         continue
+                    date_parts = paper['published']['date-parts'][0]
+                    final_date = str(date(year=date_parts[0], month=date_parts[1], day=date_parts[2]))
+                    new_entry['date'] = final_date
                     new_entry['source'] = 'CrossRef'
                     new_entry['is_referenced_by_count'] = paper.get('is-referenced-by-count')
                     new_entry['DOI'] = paper['DOI']
@@ -222,6 +231,7 @@ def get_combined_results(search_query):
                     'title': paper['display_name'],
                     'abstract' : [],
                     'source': 'OpenAlex',
+                    'date' : paper['publication_date'],
                     'cited_by_count': paper['cited_by_count'],
                     'DOI': paper['doi'],
                     'authors': [],
@@ -244,7 +254,7 @@ def get_combined_results(search_query):
                     affiliation_location = authorship['institutions'][0]['display_name'] if authorship['institutions'] else "No Affiliation"
                     # Append this author's details to the new_entry's authors list
                     new_entry['authors'].append({
-                        'author_name': author_name,
+                        'name': author_name,
                         'affiliation_location': affiliation_location
                     })
                 
@@ -280,7 +290,7 @@ def get_combined_results(search_query):
                 
                 updated_authors.append({
                     'name': author_name,
-                    'affiliation': author_affiliation
+                    'affiliation_location': author_affiliation
                 })
                     
             
@@ -314,6 +324,159 @@ def get_coordinates(address):
 
 
 
+#-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+#filtering 
+
+
+from rank_bm25 import BM25Okapi
+
+
+
+def RankByAbstractBM25(query):
+    results = get_combined_results(query)
+    corpus = []
+    for r in results:
+        corpus.append(str(r.get('abstract')))
+
+    tokenised_corpus = [doc.split(" ") for doc in corpus]
+    bm25 = BM25Okapi(tokenised_corpus)
+
+    tokenised_query = query.split(" ")
+
+    scores = list(bm25.get_scores(tokenised_query))
+
+    assert len(scores) == len(results)
+    for (r,score) in zip(results,scores):
+        r['bm25'] = score
+
+    results.sort(key = lambda x: x['bm25'], reverse = True)
+
+    return results
+
+
+
+#results = get_combined_results('climate change')
+#pp.pprint(results)
+
+def RankByCitation(query):
+    results = get_combined_results(query)
+    for r in results:
+        if 'cited_by_count' in r:
+            try:
+                r['rankcitation'] = int(r['cited_by_count'])
+            except:
+                r['rankcitation'] = 0
+        elif 'citedby_count' in r:
+            try:
+                r['rankcitation'] = int(r['citedby_count'])
+            except:
+                r['rankcitation'] = 0
+        elif 'is_referenced_by_count' in r:
+            try:
+                r['rankcitation'] = int(r['is_referenced_by_count'])
+            except:
+                r['rankcitation'] = 0
+        elif 'citationCount' in r:
+            try:
+                r['rankcitation'] = int(r['citationCount'])
+            except:
+                r['rankcitation'] = 0
+
+    results.sort(key=lambda x: x['rankcitation'], reverse=True)
+    return results
+
+
+def FilterByAuthor(query, searchAuthor):
+    results = get_combined_results(query)
+    results_filtered = []
+
+    for r in results:
+        authors = r['authors']
+        for author in authors:
+            if 'name' in author:
+                if str(author.get('name')) == searchAuthor:
+                    results_filtered.append(r)
+                    break
+            else:
+                if str(author.get('author_name')) == searchAuthor:
+                    results_filtered.append(r)
+                    break
+
+    return(results_filtered)
+
+def parse_date(item):
+    date = item['date']
+    if isinstance(date, str):
+        try:
+            return datetime.strptime(date, '%Y-%m-%d').date()
+        except ValueError:
+            # Handle other date formats or set a default value if necessary
+            return datetime.min.date()  # this sets invalid or missing dates to a far-past date
+    return date
+
+def sort_by_date(query,order):
+    if order == 'DESC':
+        sorted_data = sorted(
+        (item for item in get_combined_results(query) if item['date'] is not None and parse_date(item) is not None),
+        key=parse_date,reverse=True)
+        return sorted_data
+    elif order == 'ASC':
+        sorted_data = sorted(
+                        (item for item in get_combined_results(query) if item['date'] is not None and parse_date(item) is not None),
+                        key=parse_date)
+        return sorted_data
+
+# for paper in get_combined_results("climate change"):
+#     print(paper['date'],paper['source'])
+#     print('-------')
+
+# pp.pprint(sort_by_date("climate change",'DESC'))
+
+    
+
+
+
+
+
+        
+
+
+
+@app.route('/filterselect', methods=['POST'])
+def filter_select():
+    data = request.json
+    query = data.get('query', '')
+    method = data.get('method','')
+    author = data.get('author', '')
+    date_order = data.get('date_order','')
+    try:
+        if method == "relevancy":
+                    relevancy_rank = RankByAbstractBM25(query)
+                    return jsonify(relevancy_rank)
+        if method == "citation":
+                    Citation_rank = RankByCitation(query)
+                    return jsonify(Citation_rank)
+        if method == 'FilterByAuthor':
+                author_filter = FilterByAuthor(query, author)
+                return jsonify(author_filter)
+        if method == 'date_sort':
+            return jsonify(sort_by_date(query,date_order))
+
+    except Exception as e:
+        print(e)
+        return jsonify({"error": str(e)}), 500
+    
+ 
+
+            
+         
+         
+
+         
 
 
 @app.route('/search', methods=['POST'])
@@ -335,23 +498,40 @@ def search():
 @app.route('/location', methods=['POST'])
 def location():
     results = []
-    data = request.json
-    candidates = data.get('candidates','')
+    data = request.json  # Assuming this comes from a Flask request
+    candidates = data.get('candidates', [])
+
     if not candidates:
         return jsonify({"error": "No candidates provided"}), 400
+
     try:
-        for paper in candidates:
-            if not paper['author'].get('affiliation') == None:
-                title_name = paper.get('title')
-                author_name = paper['author'].get('name')  # Using .get() avoids KeyError if 'name' key is missing
-                affiliation_location = paper['author'].get('affiliation')
-                results.append({"title" : title_name,
-                                    'author_name' :author_name,
-                                    'affiliation_location' : affiliation_location,
-                                    'lat_long' :  get_coordinates(affiliation_location)})
+        for candidate in candidates:
+            title = candidate.get('title', 'No Title Provided')
+            
+            # Check if there are multiple authors
+            if 'authors' in candidate:
+                authors = candidate['authors']
+            else:
+                authors = [candidate.get('author', {})]
+
+            for author in authors:
+                author_name = author.get('name') or author.get('author_name', 'Unknown')
+                affiliation = author.get('affiliation_location', 'No Affiliation')
+                
+                if affiliation != "No Affiliation":
+                    coordinates = get_coordinates(affiliation)
+                    results.append({
+                        "title": title,
+                        "author_name": author_name,
+                        "affiliation_location": affiliation,
+                        "lat_long": coordinates
+                    })
+
         return jsonify(results)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
     
     
 
@@ -366,9 +546,7 @@ if __name__ == '__main__':
 
 
 #TODO
-#! stress test api 
-#! link to frontend react 
-#! decide on post processing and ranking options 
+#real version
 
 
 

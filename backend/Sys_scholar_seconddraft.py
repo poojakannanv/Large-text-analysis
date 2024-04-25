@@ -171,6 +171,8 @@ def get_combined_results(search_query):
 
     processed_semantic_scholar = processing_indexing(get_semantic_scholar_results(search_query,10),"semantic_scholar")
 
+    return_id = 0
+
     combined_results = [] 
     for api_results in [processed_openalex,processed_crossref,processed_semantic_scholar]:
         if 'data' in api_results:
@@ -178,6 +180,8 @@ def get_combined_results(search_query):
             for paper in api_results['data'][:10]: # this limits the papers to 10 as the semantic scholar bulk endpoint doesnt have a limit, remove when completed  development 
                     
                     new_entry = {'title': paper['title']}
+                    new_entry['return_id'] = return_id
+                    return_id += 1
                     new_entry['date']  = paper.get('publicationDate')
                     new_entry['source'] = 'semantic_scholar'
                     new_entry['abstract'] = paper.get('abstract')
@@ -199,6 +203,8 @@ def get_combined_results(search_query):
                         new_entry['abstract'] = paper.get('abstract')
                     if not 'abstract' in paper:
                         continue
+                    new_entry['return_id'] = return_id
+                    return_id += 1
                     date_parts = paper['published']['date-parts'][0]
                     final_date = str(date(year=date_parts[0], month=date_parts[1], day=date_parts[2]))
                     new_entry['date'] = final_date
@@ -216,6 +222,8 @@ def get_combined_results(search_query):
             for paper in api_results['search-results']['entry']:
 
                     new_entry = {'title': paper['dc:title']}
+                    new_entry['return_id'] = return_id
+                    return_id += 1
                     new_entry['source'] = 'Scopus'
                     new_entry['citedby_count'] = paper.get('citedby-count')
                     new_entry['DOI'] = paper.get('prism:doi')
@@ -229,6 +237,7 @@ def get_combined_results(search_query):
                 # Initialize new_entry as a dictionary with basic paper info
                 new_entry = {
                     'title': paper['display_name'],
+                    'return_id' : return_id,
                     'abstract' : [],
                     'source': 'OpenAlex',
                     'date' : paper['publication_date'],
@@ -238,6 +247,8 @@ def get_combined_results(search_query):
                      'source_ranking_index' :paper['source_ranking_openalex']
                        # Initialize authors as an empty list
                 }
+
+                return_id += 1
                 if paper.get('abstract_inverted_index') is not None:
                     flattened = [(word, pos) for word, positions in paper['abstract_inverted_index'].items() for pos in positions]
                     sorted_flattened = sorted(flattened, key=lambda x: x[1])
@@ -517,6 +528,7 @@ def location():
             for author in authors:
                 author_name = author.get('name') or author.get('author_name', 'Unknown')
                 affiliation = author.get('affiliation_location', 'No Affiliation')
+
                 
                 if affiliation != "No Affiliation":
                     coordinates = get_coordinates(affiliation)

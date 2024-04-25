@@ -1,5 +1,4 @@
 body {
-  text-align: center !important;
   background: rgb(0, 0, 0);
   background: rgb(0, 0, 0);
   background: linear-gradient(
@@ -9,19 +8,22 @@ body {
   );
   color: rgb(204, 204, 204) !important;
 }
-
-.search-input {
-  padding: 5px 12px;
-  border: 1px solid #ccc;
-  border-radius: 5px;
-  font-size: 16px;
-  background-color: #d2d2d2;
+.input-group-append {
+  position: relative;
+  display: flex;
+  z-index: 900;
+  right: 40px; 
+  color:rgb(179, 179, 179)
 }
 
-.search-icon {
-  padding: 5px;
+.input-group-append button {
+  padding: 0;
+  margin: 0;
+}
+.search-container {
+  transition: margin-top 0.5s ease-in-out;
 }
 
-.result-list {
-  list-style: none;
+.search-results {
+  margin-top: 0;
 }

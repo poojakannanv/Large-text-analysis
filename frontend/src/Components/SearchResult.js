@@ -121,13 +121,23 @@ function SearchResult() {
             {result.title}
           </p>
           <footer className="text-muted" style={{ fontSize: 12 }}>
-            Citation :{" "}
-            {result.citationCount
-              ? result.citationCount
-              : result.cited_by_count
-              ? result.cited_by_count
-              : 0}
-            <span> Date : {result.date ? result.date : "None"}</span>
+            <span className=" me-2">
+              {" "}
+              Source : {result.source ? result.source : "None"}
+            </span>
+
+            <span className=" me-2">
+              Citation :{" "}
+              {result.citationCount
+                ? result.citationCount
+                : result.cited_by_count
+                ? result.cited_by_count
+                : 0}
+            </span>
+            <span className=" me-2">
+              {" "}
+              Date of published : {result.date ? result.date : "None"}
+            </span>
           </footer>
         </Card.Body>
       </div>

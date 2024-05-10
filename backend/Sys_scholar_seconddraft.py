@@ -92,7 +92,7 @@ def get_openalex_results(query_term, limit):
         print(f"Error fetching OpenAlex results: {e}")
         return []
 
-#-------------------------------------------------------------------------------------------------------------------
+
 # for each paper in each orginal api return insert a rank of where the paper came in that search output
 def processing_indexing(source_input,source):
     if source == 'openalex':
@@ -116,17 +116,7 @@ def processing_indexing(source_input,source):
         random.shuffle(source_input['message']['items'])
         return source_input
     
-#-------------------------------------------------------------------------------------------------------------------
 
-
-
-# processed_openalex = processing_indexing(get_openalex_results(query,10),"openalex")
-
-# processed_crossref = processing_indexing(get_crossref_results(query,10),"crossref")
-
-# processed_semantic_scholar = processing_indexing(get_semantic_scholar_results(query,10),"semantic_scholar")
-
-#-------------------------------------------------------------------------------------------------------------------
 
 def fetch_author_info(doi):
     url = f"https://api.crossref.org/works/{doi}"
@@ -335,13 +325,6 @@ def get_coordinates(address):
 
 
 
-#-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-#-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-#-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-#-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-#filtering 
-
 
 from rank_bm25 import BM25Okapi
 
@@ -369,9 +352,6 @@ def RankByAbstractBM25(query):
     return results
 
 
-
-#results = get_combined_results('climate change')
-#pp.pprint(results)
 
 def RankByCitation(query):
     results = get_combined_results(query)
@@ -441,19 +421,6 @@ def sort_by_date(query,order):
                         key=parse_date)
         return sorted_data
 
-# for paper in get_combined_results("climate change"):
-#     print(paper['date'],paper['source'])
-#     print('-------')
-
-# pp.pprint(sort_by_date("climate change",'DESC'))
-
-    
-
-
-
-
-
-        
 
 
 
@@ -544,21 +511,10 @@ def location():
         return jsonify({"error": str(e)}), 500
 
 
-    
-    
-
 if __name__ == '__main__':
     app.run(debug=True)
 
 
-
- 
-
-
-
-
-#TODO
-#real version
 
 
 
